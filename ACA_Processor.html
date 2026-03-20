@@ -1566,9 +1566,12 @@ function renderMismatch() {
       <td>
         ${f.resolved
           ? `<span class="tag ${f.resolution.startsWith('Keep')?'tag-green':'tag-red'}">${escHtml(f.resolution)}</span>`
-          : `<div style="display:flex;gap:6px;">
+          : `<div style="display:flex;gap:6px;align-items:center;">
               <button class="resolve-btn confirm" onclick="resolveMismatch(${idx},'Keep ${f.stateOnFile}')">Keep ${f.stateOnFile}</button>
-              <button class="resolve-btn error-btn" onclick="resolveMismatch(${idx},'Override to ${f.expectedStates.join('/')}')">Override to ${f.expectedStates.join('/')}</button>
+              ${f.expectedStates.length > 1
+                ? `<select id="mm-sel-${idx}" class="mapping-select" style="width:auto;padding:4px 8px;">${f.expectedStates.map(s=>'<option value="'+s+'">'+s+'</option>').join('')}</select><button class="resolve-btn error-btn" onclick="confirmOverride(${idx})">Override \u2192</button>`
+                : `<button class="resolve-btn error-btn" onclick="resolveMismatch(${idx},'Override to ${f.expectedStates[0]}')">Override to ${f.expectedStates[0]}</button>`
+              }
              </div>`
         }
       </td>
@@ -1587,6 +1590,11 @@ function resolveMismatch(idx, resolution) {
   state.mismatchFlags[idx].resolution = resolution;
   renderMismatch();
   updateApproveBtn();
+}
+
+function confirmOverride(idx) {
+  const sel = document.getElementById('mm-sel-' + idx);
+  resolveMismatch(idx, 'Override to ' + sel.value);
 }
 
 function renderRTS() {
