@@ -668,13 +668,16 @@
       </div>
     </div>
 
-    <div id="roster-built-banner" class="banner-success" style="display:none;">✓ Master roster built successfully. Advancing to upload stage...</div>
+    <div id="roster-built-banner" class="banner-success" style="display:none;">✓ Master roster built successfully. Export to verify, then continue when ready.</div>
 
     <div class="btn-row">
       <button class="dl-btn" id="build-roster-btn" disabled onclick="buildCombinedRoster()">
         <span>Build Roster</span> →
       </button>
       <button class="ghost-btn" id="export-roster-btn" style="display:none;" onclick="downloadCombinedRoster()">⬇ Export Combined Roster</button>
+      <button class="dl-btn" id="continue-to-stage1-btn" style="display:none;" onclick="goToStage(1)">
+        <span>Continue to Upload</span> →
+      </button>
     </div>
   </div>
 
@@ -6407,8 +6410,8 @@ async function buildCombinedRoster() {
 
     document.getElementById('roster-built-banner').style.display = 'block';
     document.getElementById('export-roster-btn').style.display = '';
+    document.getElementById('continue-to-stage1-btn').style.display = '';
     btn.innerHTML = '<span>Build Roster</span> →';
-    setTimeout(() => goToStage(1), 1200);
   } catch(err) {
     alert('Error building roster: ' + err.message);
     btn.disabled = false;
@@ -7424,6 +7427,7 @@ function resetApp() {
   });
   document.getElementById('roster-built-banner').style.display = 'none';
   document.getElementById('export-roster-btn').style.display = 'none';
+  document.getElementById('continue-to-stage1-btn').style.display = 'none';
   document.getElementById('build-roster-btn').disabled = true;
   document.getElementById('upload-error').style.display = 'none';
   document.getElementById('process-btn').disabled = true;
