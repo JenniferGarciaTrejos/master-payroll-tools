@@ -1108,9 +1108,10 @@ function applyIssuerMappings() {
     }
   }
 
-  // Set header for col R if needed
+  // Set headers for col R and col S
   if (state.enrichedACA[0]) {
     state.enrichedACA[0][17] = 'Commissionable';
+    state.enrichedACA[0][18] = 'RTS_KEY';
   }
 
   goToStage(3);
@@ -1373,10 +1374,12 @@ function buildDiscrepancies() {
     // ---- Type 3: RTS Commissionable ----
     const issuerInStandard = STANDARD_CARRIERS.map(c=>c.toLowerCase()).includes(issuer.toLowerCase());
     let commVal;
+    let rtsKeyForRow = '';
     if (!issuerInStandard) {
       commVal = 'By-Pass';
     } else {
       const rtsKey = (issuer + stateVal + npn).toLowerCase().replace(/\s+/g,'');
+      rtsKeyForRow = rtsKey;
       const rtsKeyAlt = (issuer + ' ' + stateVal + ' ' + npn).toLowerCase().trim();
       // Try various key formats
       let found = false;
@@ -1406,6 +1409,7 @@ function buildDiscrepancies() {
     }
 
     row[17] = commVal;
+    row[18] = rtsKeyForRow;
 
     if (commVal === 'No') {
       // supervisor email = Roster col S = index 18
