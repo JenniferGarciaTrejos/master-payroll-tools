@@ -751,6 +751,7 @@
         <span>Build Roster</span> →
       </button>
       <button class="ghost-btn" id="export-roster-btn" style="display:none;" onclick="downloadCombinedRoster()">⬇ Export Combined Roster</button>
+      <button class="ghost-btn" id="regen-roster-btn" style="display:none;" onclick="buildCombinedRoster()">↺ Regenerate Roster</button>
       <button class="dl-btn" id="continue-to-stage1-btn" style="display:none;" onclick="goToStage(1)">
         <span>Continue to Upload</span> →
       </button>
@@ -6580,6 +6581,7 @@ async function buildCombinedRoster() {
 
     document.getElementById('roster-built-banner').style.display = 'block';
     document.getElementById('export-roster-btn').style.display = '';
+    document.getElementById('regen-roster-btn').style.display = '';
     document.getElementById('continue-to-stage1-btn').style.display = '';
     btn.innerHTML = '<span>Build Roster</span> →';
   } catch(err) {
@@ -7597,6 +7599,7 @@ function resetApp() {
   });
   document.getElementById('roster-built-banner').style.display = 'none';
   document.getElementById('export-roster-btn').style.display = 'none';
+  document.getElementById('regen-roster-btn').style.display = 'none';
   document.getElementById('continue-to-stage1-btn').style.display = 'none';
   document.getElementById('build-roster-btn').disabled = true;
   document.getElementById('upload-error').style.display = 'none';
