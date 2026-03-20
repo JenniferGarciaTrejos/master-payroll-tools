@@ -6363,8 +6363,8 @@ function mapSourceRowToMaster(row, company) {
   for (let i = 0; i < 22; i++) {
     master[i + 2] = row[i] !== undefined ? row[i] : '';
   }
-  // Format Hire Date (col 6) and Rehire Date (col 7) as MM/DD/YYYY
-  [6, 7].forEach(i => {
+  // Format Hire Date (col 6), Rehire Date (col 7), Termination Date (col 12) as MM/DD/YYYY
+  [6, 7, 12].forEach(i => {
     const v = master[i];
     if (typeof v === 'number' && v > 0) master[i] = excelSerialToDateStr(v);
   });
@@ -6374,16 +6374,15 @@ function mapSourceRowToMaster(row, company) {
     const email = String(master[17] || '').trim().toLowerCase();
     if (email && NPN_LOOKUP[email]) master[23] = NPN_LOOKUP[email];
   }
-  // Col 24: Supervisor Name reversed from "Last, First" -> "First Last"
+  // Col 24: Supervisor Name reversed from "Last, First" -> "First Last", Proper case
   const supRaw = String(row[13] || '').trim();
-  if (supRaw.includes(', ')) {
-    const parts = supRaw.split(', ');
-    master[24] = (parts[1] + ' ' + parts[0]).trim();
-  } else {
-    master[24] = supRaw;
-  }
-  // Col 25: Full Name = First + Last
-  master[25] = ((row[1] || '') + ' ' + (row[2] || '')).trim();
+  const supFlipped = supRaw.includes(', ')
+    ? (supRaw.split(', ')[1] + ' ' + supRaw.split(', ')[0]).trim()
+    : supRaw;
+  master[24] = supFlipped.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+  // Col 25: Full Name = First + Last, Proper case
+  const fullRaw = ((row[1] || '') + ' ' + (row[2] || '')).trim();
+  master[25] = fullRaw.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
   return master;
 }
 
