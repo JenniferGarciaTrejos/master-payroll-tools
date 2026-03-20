@@ -1687,9 +1687,38 @@ function goToStage5() {
 // ============================================================
 // STAGE 5: DOWNLOADS
 // ============================================================
+function excelSerialToDateStr(serial) {
+  // Excel serial → MM/DD/YYYY (UTC, accounts for Excel's 1900 leap-year bug)
+  const ms = (serial - 25569) * 86400000;
+  const d = new Date(ms);
+  const m = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  const yr = d.getUTCFullYear();
+  return m + '/' + day + '/' + yr;
+}
+
 function downloadCorrectedACA() {
   try {
-    const data = state.enrichedACA;
+    // Deep-copy so we don't mutate state
+    const data = state.enrichedACA.map(row => row.slice());
+    // Find _at columns from header row and format their values as short dates
+    if (data.length > 0) {
+      const headers = data[0];
+      const atCols = headers.reduce((acc, h, i) => {
+        if (typeof h === 'string' && h.toLowerCase().endsWith('_at')) acc.push(i);
+        return acc;
+      }, []);
+      if (atCols.length > 0) {
+        for (let r = 1; r < data.length; r++) {
+          for (const c of atCols) {
+            const v = data[r][c];
+            if (typeof v === 'number' && v > 0) {
+              data[r][c] = excelSerialToDateStr(v);
+            }
+          }
+        }
+      }
+    }
     const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'ACA_Corrected');
