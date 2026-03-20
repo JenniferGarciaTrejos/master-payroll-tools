@@ -835,6 +835,22 @@ const STANDARD_CARRIERS = [
   'BCBSC','FHCP','Florida Blue','Christus','Cigna','Molina','Oscar','UHC'
 ];
 
+const US_STATES = {
+  'alabama':'AL','alaska':'AK','arizona':'AZ','arkansas':'AR',
+  'california':'CA','colorado':'CO','connecticut':'CT','delaware':'DE',
+  'florida':'FL','georgia':'GA','hawaii':'HI','idaho':'ID',
+  'illinois':'IL','indiana':'IN','iowa':'IA','kansas':'KS',
+  'kentucky':'KY','louisiana':'LA','maine':'ME','maryland':'MD',
+  'massachusetts':'MA','michigan':'MI','minnesota':'MN','mississippi':'MS',
+  'missouri':'MO','montana':'MT','nebraska':'NE','nevada':'NV',
+  'new hampshire':'NH','new jersey':'NJ','new mexico':'NM','new york':'NY',
+  'north carolina':'NC','north dakota':'ND','ohio':'OH','oklahoma':'OK',
+  'oregon':'OR','pennsylvania':'PA','rhode island':'RI','south carolina':'SC',
+  'south dakota':'SD','tennessee':'TN','texas':'TX','utah':'UT',
+  'vermont':'VT','virginia':'VA','washington':'WA','west virginia':'WV',
+  'wisconsin':'WI','wyoming':'WY'
+};
+
 const STATE_ISSUER_MAP = {
   'BCBSTX': ['TX'],
   'BCBSOK': ['OK'],
@@ -985,12 +1001,13 @@ function proposeMapping(original) {
   if (exactMatch) return exactMatch;
   if (lo.includes('blue cross') && lo.includes('kansas city')) return '— Keep as-is —';
   if (lo.includes('anthem')) return 'Anthem';
-  if (lo.includes('blue cross') && lo.includes('texas')) return 'BCBSTX';
-  if (lo.includes('blue cross') && lo.includes('oklahoma')) return 'BCBSOK';
-  if (lo.includes('blue cross') && lo.includes('north carolina')) return 'BCBSNC';
-  if (lo.includes('blue cross') && lo.includes('south carolina')) return 'BCBSC';
-  if (lo.includes('blue cross') && lo.includes('illinois')) return 'BCBSIL';
-  if (lo.includes('blue cross') && (lo.includes('kansas') && !lo.includes('kansas city'))) return 'BCBSKS';
+  if (lo.includes('blue cross') || lo.includes('blue shield')) {
+    for (const [stateName, abbr] of Object.entries(US_STATES)) {
+      if (lo.includes(stateName) && !lo.includes('kansas city')) {
+        return 'BCBS' + abbr;
+      }
+    }
+  }
   if (lo.includes('christus')) return 'Christus';
   if (lo.includes('florida healthcare') || lo.includes('fhcp')) return 'FHCP';
   if (lo.includes('florida blue')) return 'Florida Blue';
@@ -1036,6 +1053,9 @@ function buildIssuerReview() {
 
     // Options for select
     const opts = ['— Keep as-is —', ...STANDARD_CARRIERS];
+    if (proposed !== '— Keep as-is —' && !opts.includes(proposed)) {
+      opts.push(proposed);
+    }
     const optsHtml = opts.map(o =>
       `<option value="${escHtml(o)}" ${o === proposed ? 'selected' : ''}>${escHtml(o)}</option>`
     ).join('');
@@ -1545,10 +1565,10 @@ function renderMismatch() {
       <td>${escHtml(f.expectedStates.join(', '))}</td>
       <td>
         ${f.resolved
-          ? `<span class="tag ${f.resolution==='Confirmed Correct'?'tag-green':'tag-red'}">${escHtml(f.resolution)}</span>`
+          ? `<span class="tag ${f.resolution==='Approved'?'tag-green':'tag-red'}">${escHtml(f.resolution)}</span>`
           : `<div style="display:flex;gap:6px;">
-              <button class="resolve-btn confirm" onclick="resolveMismatch(${idx},'Confirmed Correct')">Confirm Correct</button>
-              <button class="resolve-btn error-btn" onclick="resolveMismatch(${idx},'Marked as Error')">Mark as Error</button>
+              <button class="resolve-btn confirm" onclick="resolveMismatch(${idx},'Approved')">✓ Approved</button>
+              <button class="resolve-btn error-btn" onclick="resolveMismatch(${idx},'Not Approved')">✗ Not Approved</button>
              </div>`
         }
       </td>
