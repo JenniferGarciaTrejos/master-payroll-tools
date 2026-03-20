@@ -6363,6 +6363,11 @@ function mapSourceRowToMaster(row, company) {
   for (let i = 0; i < 22; i++) {
     master[i + 2] = row[i] !== undefined ? row[i] : '';
   }
+  // Format Hire Date (col 6) and Rehire Date (col 7) as MM/DD/YYYY
+  [6, 7].forEach(i => {
+    const v = master[i];
+    if (typeof v === 'number' && v > 0) master[i] = excelSerialToDateStr(v);
+  });
   // NPN fill from lookup if blank/zero
   const npn = String(master[23] || '').trim();
   if (!npn || npn === '0' || npn === '-') {
