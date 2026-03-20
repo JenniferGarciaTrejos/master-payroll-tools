@@ -555,6 +555,69 @@
     margin-top: 24px;
   }
 
+  .npn-editor {
+    margin-top: 28px;
+    border: 1px solid rgba(120,40,200,0.3);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .npn-editor summary {
+    padding: 12px 18px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.65);
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .npn-editor summary::-webkit-details-marker { display: none; }
+  .npn-editor[open] summary { border-bottom: 1px solid rgba(120,40,200,0.2); }
+  .npn-editor-body { padding: 16px 18px; }
+  .npn-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .npn-input-row input {
+    flex: 1;
+    min-width: 180px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(120,40,200,0.4);
+    background: rgba(255,255,255,0.05);
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+  }
+  .npn-input-row input::placeholder { color: rgba(255,255,255,0.3); }
+  .npn-add-btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: none;
+    background: rgba(120,40,200,0.5);
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .npn-add-btn:hover { background: rgba(120,40,200,0.75); }
+  .npn-feedback { font-size: 0.78rem; margin-bottom: 10px; min-height: 18px; }
+  .npn-feedback.ok  { color: #6ee7b7; }
+  .npn-feedback.err { color: #f87171; }
+  .npn-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .npn-table th { color: rgba(255,255,255,0.4); font-weight: 500; text-align: left; padding: 4px 8px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .npn-table td { padding: 5px 8px; color: rgba(255,255,255,0.75); border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .npn-del-btn { background: none; border: none; color: rgba(248,113,113,0.7); cursor: pointer; font-size: 0.85rem; padding: 0 4px; }
+  .npn-del-btn:hover { color: #f87171; }
+  .npn-empty { font-size: 0.78rem; color: rgba(255,255,255,0.25); padding: 6px 0; }
+
   .tag {
     display: inline-block;
     padding: 2px 8px;
@@ -667,6 +730,19 @@
         <div class="zone-filename" id="sabal-fname">No file selected</div>
       </div>
     </div>
+
+    <details class="npn-editor" id="npn-editor">
+      <summary>＋ NPN Lookup — Add / Manage Entries</summary>
+      <div class="npn-editor-body">
+        <div class="npn-input-row">
+          <input type="email" id="npn-email-input" placeholder="Work email (e.g. jsmith@americanhm.org)" onkeydown="if(event.key==='Enter')addNpnEntry()">
+          <input type="text"  id="npn-npn-input"   placeholder="NPN (e.g. 12345678)" maxlength="20" onkeydown="if(event.key==='Enter')addNpnEntry()">
+          <button class="npn-add-btn" onclick="addNpnEntry()">Add</button>
+        </div>
+        <div class="npn-feedback" id="npn-feedback"></div>
+        <div id="npn-custom-list"></div>
+      </div>
+    </details>
 
     <div id="roster-built-banner" class="banner-success" style="display:none;">✓ Master roster built successfully. Export to verify, then continue when ready.</div>
 
@@ -6348,6 +6424,96 @@ let state = {
 // ============================================================
 // STAGE 0: ROSTER BUILDER
 // ============================================================
+// ============================================================
+// NPN LOOKUP EDITOR (localStorage-backed)
+// ============================================================
+const NPN_CUSTOM_KEY = 'npn_custom_entries';
+
+function loadCustomNpnEntries() {
+  try {
+    const raw = localStorage.getItem(NPN_CUSTOM_KEY);
+    const entries = raw ? JSON.parse(raw) : {};
+    Object.assign(NPN_LOOKUP, entries);
+    renderNpnTable();
+  } catch(e) { /* ignore */ }
+}
+
+function saveCustomNpnEntries(entries) {
+  localStorage.setItem(NPN_CUSTOM_KEY, JSON.stringify(entries));
+}
+
+function getCustomNpnEntries() {
+  try {
+    const raw = localStorage.getItem(NPN_CUSTOM_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) { return {}; }
+}
+
+function addNpnEntry() {
+  const emailEl = document.getElementById('npn-email-input');
+  const npnEl   = document.getElementById('npn-npn-input');
+  const fb      = document.getElementById('npn-feedback');
+  const email   = emailEl.value.trim().toLowerCase();
+  const npn     = npnEl.value.trim();
+
+  if (!email || !email.includes('@')) {
+    fb.textContent = 'Enter a valid email address.';
+    fb.className = 'npn-feedback err';
+    return;
+  }
+  if (!npn) {
+    fb.textContent = 'Enter an NPN.';
+    fb.className = 'npn-feedback err';
+    return;
+  }
+
+  const entries = getCustomNpnEntries();
+  const isUpdate = !!entries[email];
+  entries[email] = npn;
+  NPN_LOOKUP[email] = npn;
+  saveCustomNpnEntries(entries);
+
+  fb.textContent = isUpdate ? `Updated: ${email} → ${npn}` : `Added: ${email} → ${npn}`;
+  fb.className = 'npn-feedback ok';
+  emailEl.value = '';
+  npnEl.value   = '';
+  renderNpnTable();
+}
+
+function deleteNpnEntry(email) {
+  const entries = getCustomNpnEntries();
+  delete entries[email];
+  delete NPN_LOOKUP[email];
+  saveCustomNpnEntries(entries);
+  document.getElementById('npn-feedback').textContent = '';
+  renderNpnTable();
+}
+
+function renderNpnTable() {
+  const entries = getCustomNpnEntries();
+  const container = document.getElementById('npn-custom-list');
+  if (!container) return;
+  const keys = Object.keys(entries);
+  if (keys.length === 0) {
+    container.innerHTML = '<div class="npn-empty">No custom entries yet.</div>';
+    return;
+  }
+  const rows = keys.map(email =>
+    `<tr>
+      <td>${email}</td>
+      <td>${entries[email]}</td>
+      <td><button class="npn-del-btn" onclick="deleteNpnEntry('${email.replace(/'/g,"\\'")}')">✕</button></td>
+    </tr>`
+  ).join('');
+  container.innerHTML = `<table class="npn-table">
+    <thead><tr><th>Work Email</th><th>NPN</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// Load custom entries into NPN_LOOKUP immediately
+loadCustomNpnEntries();
+
 function checkRosterFilesReady() {
   const ready = state.files.ahm && state.files.sabal;
   document.getElementById('build-roster-btn').disabled = !ready;
