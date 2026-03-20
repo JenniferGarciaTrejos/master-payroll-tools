@@ -739,6 +739,10 @@
           <input type="text"  id="npn-npn-input"   placeholder="NPN (e.g. 12345678)" maxlength="20" onkeydown="if(event.key==='Enter')addNpnEntry()">
           <button class="npn-add-btn" onclick="addNpnEntry()">Add</button>
         </div>
+        <div style="margin-bottom:10px;">
+          <button class="npn-add-btn" onclick="saveNpnToHTML()" style="background:rgba(16,185,129,0.4);">⬇ Save Updated HTML</button>
+          <span style="font-size:0.75rem;color:rgba(255,255,255,0.3);margin-left:10px;">Downloads a new copy of this file with your entries baked in permanently.</span>
+        </div>
         <div class="npn-feedback" id="npn-feedback"></div>
         <div id="npn-custom-list"></div>
       </div>
@@ -6510,6 +6514,43 @@ function renderNpnTable() {
     <thead><tr><th>Work Email</th><th>NPN</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
+}
+
+function saveNpnToHTML() {
+  try {
+    const custom = getCustomNpnEntries();
+    if (Object.keys(custom).length === 0) {
+      alert('No custom entries to save.');
+      return;
+    }
+    let html = document.documentElement.outerHTML;
+
+    // Build the lines to inject just before the closing }; of NPN_LOOKUP
+    const insertLines = Object.entries(custom)
+      .map(([email, npn]) => `  ${JSON.stringify(email)}: ${JSON.stringify(npn)},`)
+      .join('\n');
+
+    // NPN_LOOKUP ends with a quoted entry line then }; on its own line.
+    // Inject new entries between the last entry and the closing brace.
+    html = html.replace(
+      /(  "[^"]+"\s*:\s*"[^"]+"\n)(};)/,
+      (_, lastEntry, closing) => lastEntry + insertLines + '\n' + closing
+    );
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'ACA_Processor.html';
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    const count = Object.keys(custom).length;
+    document.getElementById('npn-feedback').textContent =
+      `✓ Downloaded with ${count} custom entr${count === 1 ? 'y' : 'ies'} baked in.`;
+    document.getElementById('npn-feedback').className = 'npn-feedback ok';
+  } catch(err) {
+    alert('Error saving HTML: ' + err.message);
+  }
 }
 
 // Load custom entries into NPN_LOOKUP immediately
