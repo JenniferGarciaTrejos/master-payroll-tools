@@ -746,6 +746,9 @@
       <button class="tab-btn" onclick="switchTab('tab-rts')" id="btn-tab-rts">
         RTS Errors <span class="tab-badge" id="badge-rts">0</span>
       </button>
+      <button class="tab-btn" onclick="switchTab('tab-blankstate')" id="btn-tab-blankstate">
+        Blank States <span class="tab-badge" id="badge-blankstate">0</span>
+      </button>
     </div>
 
     <!-- Tab: Unlicensed -->
@@ -793,6 +796,20 @@
       </div>
       <div id="rts-ack-wrap" class="btn-row" style="margin-top:12px;">
         <button class="resolve-btn ack" onclick="acknowledgeAllRTS()">Acknowledge All</button>
+      </div>
+    </div>
+
+    <!-- Tab: Blank States -->
+    <div class="tab-panel" id="tab-blankstate">
+      <div id="blankstate-complete" class="section-complete" style="display:none;">✓ All resolved</div>
+      <div id="blankstate-empty" class="banner-success" style="display:none;">No blank state rows found.</div>
+      <div class="review-table-wrap" id="blankstate-wrap">
+        <table class="review-table">
+          <thead>
+            <tr><th>ACA_APPLICATION_ID</th><th>Applicant Name</th><th>Issuer</th><th>Agent Email</th><th>Assign State</th></tr>
+          </thead>
+          <tbody id="blankstate-tbody"></tbody>
+        </table>
       </div>
     </div>
 
@@ -887,6 +904,7 @@ let state = {
   mismatchFlags: [],     // {rowIdx, appId, applicantName, issuer, stateOnFile, expectedStates, resolved, resolution}
   rtsFlags: [],          // {rowIdx, appId, issuer, state, supervisorName, supervisorEmail, agentName, agentEmail, npn, acked}
   rtsAcked: false,
+  blankStateFlags: [],   // {rowIdx, appId, applicantName, issuer, agentEmail, agentName, resolved, resolution}
   // Conflict resolution
   conflictQueue: [],
   conflictCurrent: null,
@@ -895,6 +913,7 @@ let state = {
   // Discrepancy resolutions
   unlicensedAllResolved: false,
   mismatchAllResolved: false,
+  blankStateAllResolved: false,
   nameColIdx: 1,
 };
 
@@ -1303,6 +1322,7 @@ function buildDiscrepancies() {
   state.unlicensedFlags = [];
   state.mismatchFlags = [];
   state.rtsFlags = [];
+  state.blankStateFlags = [];
 
   // Build RTS key set (col I = index 8)
   const rtsKeySet = new Set();
@@ -1428,6 +1448,20 @@ function buildDiscrepancies() {
         acked: false
       });
     }
+
+    // ---- Type 4: Blank State ----
+    if (!stateVal) {
+      state.blankStateFlags.push({
+        rowIdx: i,
+        appId,
+        applicantName,
+        issuer,
+        agentEmail,
+        agentName,
+        resolved: false,
+        resolution: ''
+      });
+    }
   }
 
   renderDiscrepancyTabs();
@@ -1438,6 +1472,7 @@ function renderDiscrepancyTabs() {
   renderUnlicensed();
   renderMismatch();
   renderRTS();
+  renderBlankState();
   updateApproveBtn();
 }
 
@@ -1662,13 +1697,81 @@ function acknowledgeAllRTS() {
   updateApproveBtn();
 }
 
+function renderBlankState() {
+  const flags = state.blankStateFlags;
+  document.getElementById('badge-blankstate').textContent = flags.filter(f=>!f.resolved).length;
+  document.getElementById('badge-blankstate').className = 'tab-badge' + (flags.every(f=>f.resolved) ? ' ok' : '');
+
+  if (flags.length === 0) {
+    document.getElementById('blankstate-empty').style.display = 'block';
+    document.getElementById('blankstate-wrap').style.display = 'none';
+    document.getElementById('blankstate-complete').style.display = 'none';
+    state.blankStateAllResolved = true;
+    return;
+  }
+
+  document.getElementById('blankstate-empty').style.display = 'none';
+  document.getElementById('blankstate-wrap').style.display = 'block';
+
+  const stateOpts = Object.values(US_STATES).sort()
+    .map(a => `<option value="${a}">${a}</option>`).join('');
+
+  const tbody = document.getElementById('blankstate-tbody');
+  tbody.innerHTML = '';
+
+  flags.forEach((f, idx) => {
+    const tr = document.createElement('tr');
+    tr.id = 'bs-row-' + idx;
+    if (f.resolved) tr.classList.add('resolved-row');
+
+    tr.innerHTML = `
+      <td>${escHtml(f.appId)}</td>
+      <td>${escHtml(f.applicantName)}</td>
+      <td>${escHtml(f.issuer)}</td>
+      <td>${escHtml(f.agentEmail)}</td>
+      <td id="bs-action-${idx}">
+        ${f.resolved
+          ? `<span class="tag tag-green">${escHtml(f.resolution)}</span>`
+          : `<div class="inline-form">
+               <select id="bs-sel-${idx}" class="mapping-select" style="width:auto;padding:4px 8px;">
+                 <option value="">— Select state —</option>
+                 ${stateOpts}
+               </select>
+               <button class="resolve-btn keep" onclick="submitBlankState(${idx})">Apply</button>
+             </div>`
+        }
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const allDone = flags.every(f => f.resolved);
+  document.getElementById('blankstate-complete').style.display = allDone ? 'inline-flex' : 'none';
+  state.blankStateAllResolved = allDone;
+  updateApproveBtn();
+}
+
+function submitBlankState(idx) {
+  const sel = document.getElementById('bs-sel-' + idx);
+  const chosen = sel ? sel.value.trim().toUpperCase() : '';
+  if (!chosen) return;
+  const f = state.blankStateFlags[idx];
+  state.enrichedACA[f.rowIdx][6] = chosen;
+  f.resolved = true;
+  f.resolution = chosen;
+  renderBlankState();
+  updateApproveBtn();
+}
+
 function updateApproveBtn() {
   const ulDone = state.unlicensedAllResolved || state.unlicensedFlags.every(f=>f.resolved);
   const mmDone = state.mismatchAllResolved || state.mismatchFlags.every(f=>f.resolved);
   const rtsDone = state.rtsAcked;
-  document.getElementById('approve-download-btn').disabled = !(ulDone && mmDone && rtsDone);
+  const bsDone  = state.blankStateAllResolved || state.blankStateFlags.every(f=>f.resolved);
+  document.getElementById('approve-download-btn').disabled = !(ulDone && mmDone && rtsDone && bsDone);
   state.unlicensedAllResolved = ulDone;
   state.mismatchAllResolved = mmDone;
+  state.blankStateAllResolved = bsDone;
 }
 
 function switchTab(tabId) {
@@ -1750,6 +1853,12 @@ function exportDiscrepancies() {
     const ws3 = XLSX.utils.aoa_to_sheet([rtsHeaders, ...rtsRows]);
     XLSX.utils.book_append_sheet(wb, ws3, 'RTS Errors');
 
+    // Sheet 4: Blank States
+    const bsHeaders = ['ACA_APPLICATION_ID','Applicant Name','Issuer','Agent Email','Assigned State'];
+    const bsRows = state.blankStateFlags.map(f => [f.appId, f.applicantName, f.issuer, f.agentEmail, f.resolution || '']);
+    const ws4 = XLSX.utils.aoa_to_sheet([bsHeaders, ...bsRows]);
+    XLSX.utils.book_append_sheet(wb, ws4, 'Blank States');
+
     XLSX.writeFile(wb, 'ACA_Discrepancy_Report.xlsx');
   } catch(err) {
     alert('Error generating discrepancy report: ' + err.message);
@@ -1775,12 +1884,14 @@ function resetApp() {
   state.mismatchFlags = [];
   state.rtsFlags = [];
   state.rtsAcked = false;
+  state.blankStateFlags = [];
   state.conflictQueue = [];
   state.conflictCurrent = null;
   state.conflictResolveCallback = null;
   state.conflictSelectedIdx = null;
   state.unlicensedAllResolved = false;
   state.mismatchAllResolved = false;
+  state.blankStateAllResolved = false;
 
   // Reset UI
   ['aca','roster','rts'].forEach(k => {
