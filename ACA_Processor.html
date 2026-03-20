@@ -760,6 +760,9 @@
           <tbody id="unlicensed-tbody"></tbody>
         </table>
       </div>
+      <div id="unlicensed-ack-wrap" class="btn-row" style="margin-top:12px;">
+        <button class="resolve-btn ack" onclick="keepAllUnlicensed()">Keep All &amp; Continue →</button>
+      </div>
     </div>
 
     <!-- Tab: State Mismatch -->
@@ -1494,6 +1497,15 @@ function resolveUnlicensed(idx, resolution) {
   f.resolution = resolution;
   renderUnlicensed();
   updateApproveBtn();
+}
+
+function keepAllUnlicensed() {
+  state.unlicensedFlags.forEach(f => {
+    if (!f.resolved) { f.resolved = true; f.resolution = 'Keep'; }
+  });
+  renderUnlicensed();
+  updateApproveBtn();
+  switchTab('tab-mismatch');
 }
 
 function showCorrectEmail(idx) {
