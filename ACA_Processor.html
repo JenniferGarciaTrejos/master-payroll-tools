@@ -674,6 +674,7 @@
       <button class="dl-btn" id="build-roster-btn" disabled onclick="buildCombinedRoster()">
         <span>Build Roster</span> →
       </button>
+      <button class="ghost-btn" id="export-roster-btn" style="display:none;" onclick="downloadCombinedRoster()">⬇ Export Combined Roster</button>
     </div>
   </div>
 
@@ -6405,6 +6406,7 @@ async function buildCombinedRoster() {
     state.rosterBuilt = true;
 
     document.getElementById('roster-built-banner').style.display = 'block';
+    document.getElementById('export-roster-btn').style.display = '';
     btn.innerHTML = '<span>Build Roster</span> →';
     setTimeout(() => goToStage(1), 1200);
   } catch(err) {
@@ -7306,6 +7308,17 @@ function excelSerialToDateStr(serial) {
   return m + '/' + day + '/' + yr;
 }
 
+function downloadCombinedRoster() {
+  try {
+    const ws = XLSX.utils.aoa_to_sheet(state.rosterData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Combined Roster');
+    XLSX.writeFile(wb, 'Combined_Master_Roster.xlsx');
+  } catch(err) {
+    alert('Error exporting roster: ' + err.message);
+  }
+}
+
 function downloadCorrectedACA() {
   try {
     // Deep-copy so we don't mutate state
@@ -7410,6 +7423,7 @@ function resetApp() {
     document.getElementById(k + '-fname').textContent = 'No file selected';
   });
   document.getElementById('roster-built-banner').style.display = 'none';
+  document.getElementById('export-roster-btn').style.display = 'none';
   document.getElementById('build-roster-btn').disabled = true;
   document.getElementById('upload-error').style.display = 'none';
   document.getElementById('process-btn').disabled = true;
