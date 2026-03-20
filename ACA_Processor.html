@@ -6356,7 +6356,7 @@ function checkRosterFilesReady() {
 function mapSourceRowToMaster(row, company) {
   const master = new Array(26).fill('');
   // Col 0: Company - Department
-  master[0] = company === 'AHM' ? 'AHM' : 'Sabal - ' + (row[3] || '');
+  master[0] = company + ' - ' + (row[3] || '');
   // Col 1: Company Co
   master[1] = company === 'AHM' ? 159040 : 335308;
   // Cols 2-23: direct shift from source[0..21]
