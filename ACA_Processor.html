@@ -1565,10 +1565,10 @@ function renderMismatch() {
       <td>${escHtml(f.expectedStates.join(', '))}</td>
       <td>
         ${f.resolved
-          ? `<span class="tag ${f.resolution==='Approved'?'tag-green':'tag-red'}">${escHtml(f.resolution)}</span>`
+          ? `<span class="tag ${f.resolution.startsWith('Keep')?'tag-green':'tag-red'}">${escHtml(f.resolution)}</span>`
           : `<div style="display:flex;gap:6px;">
-              <button class="resolve-btn confirm" onclick="resolveMismatch(${idx},'Approved')">✓ Approved</button>
-              <button class="resolve-btn error-btn" onclick="resolveMismatch(${idx},'Not Approved')">✗ Not Approved</button>
+              <button class="resolve-btn confirm" onclick="resolveMismatch(${idx},'Keep ${f.stateOnFile}')">Keep ${f.stateOnFile}</button>
+              <button class="resolve-btn error-btn" onclick="resolveMismatch(${idx},'Override to ${f.expectedStates.join('/')}')">Override to ${f.expectedStates.join('/')}</button>
              </div>`
         }
       </td>
