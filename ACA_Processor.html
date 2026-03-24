@@ -6,6 +6,7 @@
 <title>ACA Commissionable Sales Processor</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://sdk.amazonaws.com/js/aws-sdk-2.1690.0.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -668,6 +669,96 @@
     gap: 6px;
     flex-wrap: wrap;
   }
+
+  /* S3 Credentials Panel */
+  .s3-editor {
+    margin-top: 28px;
+    border: 1px solid rgba(59,130,246,0.3);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .s3-editor summary {
+    padding: 12px 18px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: rgba(147,197,253,0.8);
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .s3-editor summary::-webkit-details-marker { display: none; }
+  .s3-editor[open] summary { border-bottom: 1px solid rgba(59,130,246,0.2); }
+  .s3-editor-body { padding: 16px 18px; }
+  .s3-field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .s3-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .s3-field label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .s3-field input {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(59,130,246,0.35);
+    background: rgba(255,255,255,0.04);
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+  }
+  .s3-field input::placeholder { color: rgba(255,255,255,0.25); }
+  .s3-field input:focus { outline: none; border-color: rgba(96,165,250,0.7); }
+  .s3-connect-btn {
+    padding: 9px 20px;
+    border-radius: 8px;
+    border: none;
+    background: rgba(59,130,246,0.45);
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .s3-connect-btn:hover { background: rgba(59,130,246,0.65); }
+  .s3-connect-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .s3-status {
+    margin-top: 10px;
+    font-size: 0.78rem;
+    min-height: 18px;
+    color: rgba(255,255,255,0.45);
+  }
+  .s3-status.ok  { color: #6ee7b7; }
+  .s3-status.err { color: #f87171; }
+  .s3-status.loading { color: rgba(147,197,253,0.8); }
+
+  /* Previously Paid tab */
+  .resolve-btn.dup  { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.08); color: #f87171; }
+  .resolve-btn.dup:hover { background: rgba(239,68,68,0.15); }
+  .resolve-btn.override { border-color: rgba(234,179,8,0.4); background: rgba(234,179,8,0.08); color: #fbbf24; }
+  .resolve-btn.override:hover { background: rgba(234,179,8,0.15); }
+  .banner-skip {
+    background: rgba(100,100,100,0.1);
+    border: 1px solid rgba(150,150,150,0.25);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 0.8rem;
+    color: rgba(200,200,200,0.6);
+    margin-bottom: 16px;
+  }
 </style>
 </head>
 <body>
@@ -730,6 +821,32 @@
         <div class="zone-filename" id="sabal-fname">No file selected</div>
       </div>
     </div>
+
+    <details class="s3-editor" id="s3-editor">
+      <summary>☁ S3 Payment History — Connect to AWS</summary>
+      <div class="s3-editor-body">
+        <div class="s3-field-grid">
+          <div class="s3-field">
+            <label>AWS Region</label>
+            <input type="text" id="s3-region" placeholder="e.g. us-east-1">
+          </div>
+          <div class="s3-field">
+            <label>Bucket Name</label>
+            <input type="text" id="s3-bucket" placeholder="my-aca-paid-bucket">
+          </div>
+          <div class="s3-field">
+            <label>Access Key ID</label>
+            <input type="text" id="s3-access-key" placeholder="AKIA...">
+          </div>
+          <div class="s3-field">
+            <label>Secret Access Key</label>
+            <input type="password" id="s3-secret-key" placeholder="••••••••••••">
+          </div>
+        </div>
+        <button class="s3-connect-btn" id="s3-connect-btn" onclick="connectToS3()">Connect &amp; Load Payment History</button>
+        <div class="s3-status" id="s3-status">Not connected — previously-paid check will be skipped.</div>
+      </div>
+    </details>
 
     <details class="npn-editor" id="npn-editor">
       <summary>＋ NPN Lookup — Add / Manage Entries</summary>
@@ -864,6 +981,9 @@
       <button class="tab-btn" onclick="switchTab('tab-blankstate')" id="btn-tab-blankstate">
         Blank States <span class="tab-badge" id="badge-blankstate">0</span>
       </button>
+      <button class="tab-btn" onclick="switchTab('tab-prevpaid')" id="btn-tab-prevpaid">
+        Previously Paid <span class="tab-badge" id="badge-prevpaid">0</span>
+      </button>
     </div>
 
     <!-- Tab: Unlicensed -->
@@ -928,6 +1048,21 @@
       </div>
     </div>
 
+    <!-- Tab: Previously Paid -->
+    <div class="tab-panel" id="tab-prevpaid">
+      <div id="prevpaid-skip" class="banner-skip" style="display:none;">S3 not connected — previously-paid duplicate check was skipped.</div>
+      <div id="prevpaid-complete" class="section-complete" style="display:none;">✓ All resolved</div>
+      <div id="prevpaid-empty" class="banner-success" style="display:none;">No previously paid records found in this upload.</div>
+      <div class="review-table-wrap" id="prevpaid-wrap">
+        <table class="review-table">
+          <thead>
+            <tr><th>ACA_APPLICATION_ID</th><th>Agent Name</th><th>Agent Email</th><th>Issuer</th><th>State</th><th>NPN</th><th>Resolution</th></tr>
+          </thead>
+          <tbody id="prevpaid-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
     <hr class="divider">
     <div class="btn-row">
       <button class="export-now-btn" onclick="exportDiscrepancies()">⬇ Export Discrepancies Now</button>
@@ -943,7 +1078,7 @@
     <div class="s5-dl-grid">
       <div class="s5-dl-card">
         <div class="s5-dl-title">Corrected ACA Report</div>
-        <div class="s5-dl-desc">Original data with normalized issuers, enriched roster fields, and commissionability values in column R.</div>
+        <div class="s5-dl-desc">Original data with normalized issuers, enriched roster fields, commissionability values, and a Previously Paid column.</div>
         <button class="dl-btn" onclick="downloadCorrectedACA()">⬇ Download ACA Report</button>
       </div>
       <div class="s5-dl-card">
@@ -6424,7 +6559,99 @@ let state = {
   mismatchAllResolved: false,
   blankStateAllResolved: false,
   nameColIdx: 1,
+  // S3 / Previously Paid
+  s3Connected: false,
+  previouslyPaidAppIds: new Set(),
+  previouslyPaidFlags: [],   // {rowIdx, appId, agentName, agentEmail, issuer, stateCode, npn, resolved, resolution}
 };
+
+// ============================================================
+// S3 PAYMENT HISTORY
+// ============================================================
+async function connectToS3() {
+  const region    = document.getElementById('s3-region').value.trim();
+  const bucket    = document.getElementById('s3-bucket').value.trim();
+  const accessKey = document.getElementById('s3-access-key').value.trim();
+  const secretKey = document.getElementById('s3-secret-key').value.trim();
+
+  if (!region || !bucket || !accessKey || !secretKey) {
+    setS3Status('err', '✗ All four fields are required.');
+    return;
+  }
+
+  const btn = document.getElementById('s3-connect-btn');
+  btn.disabled = true;
+  setS3Status('loading', '<span class="spinner"></span> &nbsp;Connecting to S3...');
+
+  try {
+    AWS.config.update({
+      region,
+      accessKeyId: accessKey,
+      secretAccessKey: secretKey,
+      signatureVersion: 'v4'
+    });
+    const s3 = new AWS.S3();
+
+    // List all objects in the bucket
+    let allObjects = [];
+    let continuationToken = undefined;
+    do {
+      const params = { Bucket: bucket };
+      if (continuationToken) params.ContinuationToken = continuationToken;
+      const listResult = await s3.listObjectsV2(params).promise();
+      allObjects = allObjects.concat(listResult.Contents || []);
+      continuationToken = listResult.IsTruncated ? listResult.NextContinuationToken : undefined;
+    } while (continuationToken);
+
+    if (allObjects.length === 0) {
+      state.s3Connected = true;
+      state.previouslyPaidAppIds = new Set();
+      setS3Status('ok', '✓ Connected — bucket is empty, no prior payments found.');
+      btn.disabled = false;
+      return;
+    }
+
+    setS3Status('loading', '<span class="spinner"></span> &nbsp;Loading ' + allObjects.length + ' file(s)...');
+
+    // Download and parse each file
+    let fileCount = 0;
+    for (const obj of allObjects) {
+      try {
+        const objData = await s3.getObject({ Bucket: bucket, Key: obj.Key }).promise();
+        const arrayBuf = objData.Body.buffer
+          ? objData.Body.buffer.slice(objData.Body.byteOffset, objData.Body.byteOffset + objData.Body.byteLength)
+          : await new Response(objData.Body).arrayBuffer();
+        const wb = XLSX.read(new Uint8Array(arrayBuf), { type: 'array' });
+        const sheetName = wb.SheetNames[0];
+        if (!sheetName) continue;
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+        for (const row of rows) {
+          const val = String(row['Policy Number'] || '').trim();
+          if (val) state.previouslyPaidAppIds.add(val);
+        }
+        fileCount++;
+      } catch (fileErr) {
+        console.warn('S3: could not parse file ' + obj.Key, fileErr);
+      }
+    }
+
+    state.s3Connected = true;
+    setS3Status('ok',
+      '✓ Connected — ' + fileCount + ' file(s) loaded, ' +
+      state.previouslyPaidAppIds.size + ' unique Policy Number(s) on record.'
+    );
+  } catch (err) {
+    setS3Status('err', '✗ ' + (err.message || 'Connection failed. Check credentials and CORS policy.'));
+    state.s3Connected = false;
+  }
+  btn.disabled = false;
+}
+
+function setS3Status(type, html) {
+  const el = document.getElementById('s3-status');
+  el.className = 's3-status ' + type;
+  el.innerHTML = html;
+}
 
 // ============================================================
 // STAGE 0: ROSTER BUILDER
@@ -7188,6 +7415,28 @@ function buildDiscrepancies() {
     }
   }
 
+  // Flag previously-paid rows using S3 payment history
+  state.previouslyPaidFlags = [];
+  if (state.s3Connected && state.previouslyPaidAppIds.size > 0) {
+    for (let rIdx = 1; rIdx < state.enrichedACA.length; rIdx++) {
+      const row = state.enrichedACA[rIdx];
+      const appId = String(row[0] || '').trim();
+      if (appId && state.previouslyPaidAppIds.has(appId)) {
+        state.previouslyPaidFlags.push({
+          rowIdx: rIdx,
+          appId,
+          agentName:  String(row[12] || ''),
+          agentEmail: String(row[13] || ''),
+          issuer:     String(row[5]  || ''),
+          stateCode:  String(row[6]  || ''),
+          npn:        String(row[14] || ''),
+          resolved: false,
+          resolution: ''
+        });
+      }
+    }
+  }
+
   renderDiscrepancyTabs();
   goToStage(4);
 }
@@ -7197,6 +7446,66 @@ function renderDiscrepancyTabs() {
   renderMismatch();
   renderRTS();
   renderBlankState();
+  renderPreviouslyPaid();
+  updateApproveBtn();
+}
+
+function renderPreviouslyPaid() {
+  const flags = state.previouslyPaidFlags;
+  const badge = document.getElementById('badge-prevpaid');
+  const tbody = document.getElementById('prevpaid-tbody');
+  const skipEl    = document.getElementById('prevpaid-skip');
+  const emptyEl   = document.getElementById('prevpaid-empty');
+  const completeEl = document.getElementById('prevpaid-complete');
+  const wrapEl    = document.getElementById('prevpaid-wrap');
+
+  const unresolved = flags.filter(f => !f.resolved).length;
+  badge.textContent = unresolved;
+  badge.className = 'tab-badge' + (unresolved === 0 ? ' ok' : '');
+
+  if (!state.s3Connected) {
+    skipEl.style.display = '';
+    emptyEl.style.display = 'none';
+    completeEl.style.display = 'none';
+    wrapEl.style.display = 'none';
+    tbody.innerHTML = '';
+    return;
+  }
+  skipEl.style.display = 'none';
+
+  if (flags.length === 0) {
+    emptyEl.style.display = '';
+    completeEl.style.display = 'none';
+    wrapEl.style.display = 'none';
+    tbody.innerHTML = '';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  wrapEl.style.display = '';
+  completeEl.style.display = unresolved === 0 ? '' : 'none';
+
+  tbody.innerHTML = flags.map((f, i) => {
+    const rowClass = f.resolved ? ' class="resolved-row"' : '';
+    const resBtns = f.resolved
+      ? `<span class="tag ${f.resolution === 'Override — Pay Again' ? 'tag-yellow' : 'tag-red'}">${escHtml(f.resolution)}</span>`
+      : `<button class="resolve-btn dup" onclick="resolvePrevPaid(${i},'Confirmed Duplicate')">✗ Confirmed Duplicate</button>
+         <button class="resolve-btn override" onclick="resolvePrevPaid(${i},'Override — Pay Again')">! Override — Pay Again</button>`;
+    return `<tr${rowClass}>
+      <td>${escHtml(f.appId)}</td>
+      <td>${escHtml(f.agentName)}</td>
+      <td>${escHtml(f.agentEmail)}</td>
+      <td>${escHtml(f.issuer)}</td>
+      <td>${escHtml(f.stateCode)}</td>
+      <td>${escHtml(f.npn)}</td>
+      <td style="white-space:nowrap;">${resBtns}</td>
+    </tr>`;
+  }).join('');
+}
+
+function resolvePrevPaid(idx, resolution) {
+  state.previouslyPaidFlags[idx].resolved = true;
+  state.previouslyPaidFlags[idx].resolution = resolution;
+  renderPreviouslyPaid();
   updateApproveBtn();
 }
 
@@ -7492,7 +7801,8 @@ function updateApproveBtn() {
   const mmDone = state.mismatchAllResolved || state.mismatchFlags.every(f=>f.resolved);
   const rtsDone = state.rtsAcked;
   const bsDone  = state.blankStateAllResolved || state.blankStateFlags.every(f=>f.resolved);
-  document.getElementById('approve-download-btn').disabled = !(ulDone && mmDone && rtsDone && bsDone);
+  const ppDone  = !state.s3Connected || state.previouslyPaidFlags.every(f=>f.resolved);
+  document.getElementById('approve-download-btn').disabled = !(ulDone && mmDone && rtsDone && bsDone && ppDone);
   state.unlicensedAllResolved = ulDone;
   state.mismatchAllResolved = mmDone;
   state.blankStateAllResolved = bsDone;
@@ -7556,6 +7866,12 @@ function downloadCorrectedACA() {
           }
         }
       }
+      // Add "Previously Paid" column
+      data[0].push('Previously Paid');
+      for (let r = 1; r < data.length; r++) {
+        const appId = String(data[r][0] || '').trim();
+        data[r].push(state.s3Connected && state.previouslyPaidAppIds.has(appId) ? 'Yes' : 'No');
+      }
     }
     const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -7594,6 +7910,14 @@ function exportDiscrepancies() {
     const ws4 = XLSX.utils.aoa_to_sheet([bsHeaders, ...bsRows]);
     XLSX.utils.book_append_sheet(wb, ws4, 'Blank States');
 
+    // Sheet 5: Previously Paid (only if S3 was connected)
+    if (state.s3Connected && state.previouslyPaidFlags.length > 0) {
+      const ppHeaders = ['ACA_APPLICATION_ID','Agent Name','Agent Email','Issuer','State','NPN','Resolution'];
+      const ppRows = state.previouslyPaidFlags.map(f => [f.appId, f.agentName, f.agentEmail, f.issuer, f.stateCode, f.npn, f.resolution || '']);
+      const ws5 = XLSX.utils.aoa_to_sheet([ppHeaders, ...ppRows]);
+      XLSX.utils.book_append_sheet(wb, ws5, 'Previously Paid');
+    }
+
     XLSX.writeFile(wb, 'ACA_Discrepancy_Report.xlsx');
   } catch(err) {
     alert('Error generating discrepancy report: ' + err.message);
@@ -7628,6 +7952,9 @@ function resetApp() {
   state.unlicensedAllResolved = false;
   state.mismatchAllResolved = false;
   state.blankStateAllResolved = false;
+  state.previouslyPaidFlags = [];
+  // Note: s3Connected and previouslyPaidAppIds are intentionally NOT reset
+  // so reconnecting to S3 is not required after each file run.
 
   // Reset UI
   ['aca','rts'].forEach(k => {
