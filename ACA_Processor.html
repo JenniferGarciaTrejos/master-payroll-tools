@@ -7883,9 +7883,32 @@ function excelSerialToDateStr(serial) {
   return m + '/' + day + '/' + yr;
 }
 
+function excelSerialToDateCell(serial) {
+  // Returns a SheetJS cell object so Excel writes a real date cell (not a text string)
+  return { t: 'n', v: serial, z: 'M/D/YYYY' };
+}
+
+function rosterDateStrToCell(str) {
+  // Reverses excelSerialToDateStr: parses "M/D/YYYY" back to an Excel date cell object
+  if (!str || typeof str !== 'string') return str;
+  const parts = str.split('/');
+  if (parts.length !== 3) return str;
+  const [m, d, y] = parts.map(Number);
+  if (isNaN(m) || isNaN(d) || isNaN(y) || y < 1900) return str;
+  const serial = Date.UTC(y, m - 1, d) / 86400000 + 25569;
+  return { t: 'n', v: serial, z: 'M/D/YYYY' };
+}
+
 function downloadCombinedRoster() {
   try {
-    const ws = XLSX.utils.aoa_to_sheet(state.rosterData);
+    const data = state.rosterData.map(row => row.slice());
+    const dateCols = [6, 7, 12]; // Hire Date, Rehire Date, Termination Date
+    for (let r = 1; r < data.length; r++) {
+      for (const c of dateCols) {
+        data[r][c] = rosterDateStrToCell(data[r][c]);
+      }
+    }
+    const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Combined Roster');
     XLSX.writeFile(wb, 'Combined_Master_Roster.xlsx');
@@ -7910,7 +7933,7 @@ function downloadCorrectedACA() {
           for (const c of atCols) {
             const v = data[r][c];
             if (typeof v === 'number' && v > 0) {
-              data[r][c] = excelSerialToDateStr(v);
+              data[r][c] = excelSerialToDateCell(v);
             }
           }
         }
