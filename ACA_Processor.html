@@ -6498,6 +6498,21 @@ const NPN_LOOKUP = {
   "zyteal.harmon@americanhealthmarketplace.com": "20823113"
 };
 
+// Always-applied overrides — corrects known-bad NPNs in the source roster regardless of roster value
+const NPN_OVERRIDE = {
+  "michael.battaglio2@americanhealthmarketplace.com": "18414085"
+};
+
+// Employee ID-based NPN lookup — used when a roster row has no email and no NPN
+// Key format: "{company_lowercase}_{employeeId}"  (e.g. "sabal_7276")
+// Needed for employees whose active Sales record has no email (transitioned from external hire)
+const NPN_EMP_LOOKUP = {
+  "sabal_7276": "20687064",  // Monique Young
+  "sabal_7246": "18917843",  // Tanea Bryant
+  "sabal_7275": "21459390",  // Kyran Robertson
+  "sabal_7251": "18978407"   // Claudia Pineda
+};
+
 const US_STATES = {
   'alabama':'AL','alaska':'AK','arizona':'AZ','arkansas':'AR',
   'california':'CA','colorado':'CO','connecticut':'CT','delaware':'DE',
@@ -6803,12 +6818,21 @@ function mapSourceRowToMaster(row, company) {
     const v = master[i];
     if (typeof v === 'number' && v > 0) master[i] = excelSerialToDateStr(v);
   });
-  // NPN fill from lookup if blank/zero
-  const npn = String(master[23] || '').trim();
+  // NPN fill — Step 1: use NPN_LOOKUP by email if NPN is blank/zero (existing behavior)
+  let npn = String(master[23] || '').trim();
   if (!npn || npn === '0' || npn === '-') {
     const email = String(master[17] || '').trim().toLowerCase();
     if (email && NPN_LOOKUP[email]) master[23] = NPN_LOOKUP[email];
   }
+  // NPN fill — Step 2: use NPN_EMP_LOOKUP by company+empId when email is blank and NPN still missing
+  npn = String(master[23] || '').trim();
+  if (!npn || npn === '0' || npn === '-') {
+    const empKey = company.toLowerCase() + '_' + String(master[2]).trim();
+    if (NPN_EMP_LOOKUP[empKey]) master[23] = NPN_EMP_LOOKUP[empKey];
+  }
+  // NPN fill — Step 3: apply NPN_OVERRIDE to fix known-bad NPNs (overrides roster value)
+  const overrideEmail = String(master[17] || '').trim().toLowerCase();
+  if (overrideEmail && NPN_OVERRIDE[overrideEmail]) master[23] = NPN_OVERRIDE[overrideEmail];
   // Col 24: Supervisor Name reversed from "Last, First" -> "First Last", Proper case
   const supRaw = String(row[13] || '').trim();
   const supFlipped = supRaw.includes(', ')
@@ -6819,6 +6843,31 @@ function mapSourceRowToMaster(row, company) {
   const fullRaw = ((row[1] || '') + ' ' + (row[2] || '')).trim();
   master[25] = fullRaw.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
   return master;
+}
+
+function deduplicateRosterRows(rows) {
+  // When an employee has multiple active rows and one is a Sales row, keep only the Sales row.
+  // This handles employees who transitioned from external contractor (Medix/Nulogic/Andvaris)
+  // to internal hire (Sales) — both records may be active during the transition period.
+  const nameMap = new Map(); // fullName_lower -> [idx, ...]
+  rows.forEach((row, idx) => {
+    const isActive = String(row[11] || '').toLowerCase().includes('active');
+    if (!isActive) return;
+    const name = String(row[25] || '').trim().toLowerCase();
+    if (!name) return;
+    if (!nameMap.has(name)) nameMap.set(name, []);
+    nameMap.get(name).push(idx);
+  });
+  const toRemove = new Set();
+  for (const [, indices] of nameMap) {
+    if (indices.length < 2) continue;
+    // Find the Sales row among duplicates
+    const salesIdx = indices.find(i => String(rows[i][0] || '').toLowerCase().includes('sales'));
+    if (salesIdx !== undefined) {
+      indices.forEach(i => { if (i !== salesIdx) toRemove.add(i); });
+    }
+  }
+  return rows.filter((_, idx) => !toRemove.has(idx));
 }
 
 async function buildCombinedRoster() {
@@ -6841,8 +6890,8 @@ async function buildCombinedRoster() {
       "Supervisor's Name (First Last)", 'Full Name'
     ];
 
-    const ahmRows   = ahmRaw.slice(1).map(r => mapSourceRowToMaster(r, 'AHM'));
-    const sabalRows = sabalRaw.slice(1).map(r => mapSourceRowToMaster(r, 'Sabal'));
+    const ahmRows   = deduplicateRosterRows(ahmRaw.slice(1).map(r => mapSourceRowToMaster(r, 'AHM')));
+    const sabalRows = deduplicateRosterRows(sabalRaw.slice(1).map(r => mapSourceRowToMaster(r, 'Sabal')));
 
     state.rosterData = [headers, ...ahmRows, ...sabalRows];
     state.rosterBuilt = true;
